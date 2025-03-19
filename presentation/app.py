@@ -33,6 +33,7 @@ class RadiantBeats:
         self.ffplay_path = self.find_ffplay()
 
         self.create_widgets()
+        self.refresh_songs()  
 
     def create_widgets(self):
         self.add_folder_button = tk.Button(self.root, text="Add Folder", command=self.add_folder)
