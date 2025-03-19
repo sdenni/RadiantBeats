@@ -5,4 +5,5 @@ imageio
 imageio-ffmpeg
 decorator
 tqdm
+sqlite3
 tkinterpy
