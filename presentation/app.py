@@ -14,8 +14,11 @@ except ImportError as e:
     messagebox.showerror("Import Error", f"Failed to import moviepy. Please ensure moviepy is installed. Error: {e}")
     print(f"Failed to import moviepy: {e}")
 
-class MusicPlayer:
-    def __init__(self, root):
+class RadiantBeats:
+    def __init__(self, root, connection):
+        self.root = root
+        self.connection = connection
+        
         self.root = root
         self.root.title("Radiant Beats")
         self.root.geometry("600x400")
@@ -43,6 +46,12 @@ class MusicPlayer:
 
         self.stop_button = tk.Button(self.root, text="Stop", command=self.stop_song)
         self.stop_button.pack()
+
+        self.delete_all_button = tk.Button(self.root, text="Delete All", command=self.delete_all_songs)
+        self.delete_all_button.pack()
+
+        self.delete_selected_button = tk.Button(self.root, text="Delete Selected", command=self.delete_selected_song)
+        self.delete_selected_button.pack()
 
         self.song_listbox = tk.Listbox(self.root)
         self.song_listbox.pack(fill=tk.BOTH, expand=True)
@@ -139,7 +148,33 @@ class MusicPlayer:
     def load_favorites(self):
         self.load_playlist("Favorites")
 
+    def delete_all_songs(self):
+        try:
+            cursor = self.connection.cursor()
+            cursor.execute("DELETE FROM songs")
+            self.connection.commit()
+            self.refresh_songs()
+        except Exception as e:
+            messagebox.showerror("Database Error", f"Failed to delete all songs: {e}")
+
+    def delete_selected_song(self):
+        selected_song = self.song_listbox.get(tk.ACTIVE)
+        if selected_song:
+            try:
+                cursor = self.connection.cursor()
+                cursor.execute("DELETE FROM songs WHERE path = ?", (selected_song,))
+                self.connection.commit()
+                self.refresh_songs()
+            except Exception as e:
+                messagebox.showerror("Database Error", f"Failed to delete selected song: {e}")
+
+    def on_closing(self):
+        self.connection.close()
+        self.root.destroy()
+
 if __name__ == "__main__":
     root = tk.Tk()
-    app = MusicPlayer(root)
+    connection = create_connection()  # Ensure the connection is created
+    app = RadiantBeats(root, connection)
+    root.protocol("WM_DELETE_WINDOW", app.on_closing)
     root.mainloop()
