@@ -1,0 +1,8 @@
+pygame
+moviepy
+numpy
+imageio
+imageio-ffmpeg
+decorator
+tqdm
+tkinterpy
