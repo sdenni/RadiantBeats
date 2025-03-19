@@ -4,6 +4,7 @@ from tkinter import filedialog, messagebox
 from application.services import MusicService
 import pygame
 import subprocess as sp
+from ffplay_audio_previewer import FFPLAY_AudioPreviewer
 
 try:
     from moviepy import VideoFileClip
@@ -22,6 +23,7 @@ class MusicPlayer:
         self.music_service = MusicService()
         self.current_song_index = 0
         self.current_video = None
+        self.audio_previewer = FFPLAY_AudioPreviewer()
 
         pygame.mixer.init()
 
