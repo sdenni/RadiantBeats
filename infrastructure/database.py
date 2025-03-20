@@ -81,5 +81,11 @@ class Database:
             cursor.execute("INSERT INTO playlist_songs (playlist_id, song_id) VALUES ((SELECT id FROM playlists WHERE name = ?), (SELECT id FROM songs WHERE path = ?))", (playlist.name, song.path))
         self.conn.commit()
 
+    def get_all_playlists(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT name FROM playlists")
+        playlists = cursor.fetchall()
+        return [Playlist(name[0]) for name in playlists]
+
 def create_connection():
     return sqlite3.connect('music.db')

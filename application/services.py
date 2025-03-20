@@ -21,3 +21,6 @@ class MusicService:
         song = self.db.get_song_by_path(song_path)
         playlist.add_song(song)
         self.db.update_playlist(playlist)
+
+    def get_all_playlists(self):
+        return self.db.get_all_playlists()

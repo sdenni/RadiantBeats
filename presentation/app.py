@@ -1,10 +1,11 @@
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog  # Import simpledialog for custom dialogs
 from application.services import MusicService
 import pygame
 import subprocess as sp
 from ffplay_audio_previewer import FFPLAY_AudioPreviewer
+import random
 
 try:
     from moviepy import VideoFileClip
@@ -14,6 +15,16 @@ except ImportError as e:
     messagebox.showerror("Import Error", f"Failed to import moviepy. Please ensure moviepy is installed. Error: {e}")
     print(f"Failed to import moviepy: {e}")
 
+class PlaylistNameDialog(simpledialog.Dialog):
+    def body(self, master):
+        tk.Label(master, text="Enter playlist name:").grid(row=0)
+        self.playlist_name_entry = tk.Entry(master)
+        self.playlist_name_entry.grid(row=0, column=1)
+        return self.playlist_name_entry
+
+    def apply(self):
+        self.playlist_name = self.playlist_name_entry.get()
+
 class RadiantBeats:
     def __init__(self, root, connection):
         self.root = root
@@ -21,12 +32,14 @@ class RadiantBeats:
         
         self.root = root
         self.root.title("Radiant Beats")
-        self.root.geometry("600x400")
+        self.root.geometry("600x1000")
 
         self.music_service = MusicService()
         self.current_song_index = 0
         self.current_video = None
         self.audio_previewer = FFPLAY_AudioPreviewer()
+        self.shuffle = False
+        self.repeat = False
 
         pygame.mixer.init()
 
@@ -63,6 +76,37 @@ class RadiantBeats:
         self.add_to_favorites_button = tk.Button(self.root, text="Add to Favorites", command=self.add_to_favorites)
         self.add_to_favorites_button.pack()
 
+        self.playlist_var = tk.StringVar(self.root)
+        self.playlist_var.set("All Songs")  # Default value
+        self.playlist_dropdown = tk.OptionMenu(self.root, self.playlist_var, "All Songs", "Favorites")
+        self.playlist_dropdown.pack()
+
+        self.load_playlist_button = tk.Button(self.root, text="Load Playlist", command=self.load_selected_playlist)
+        self.load_playlist_button.pack()
+
+        self.update_playlist_dropdown()  # Update the dropdown with available playlists
+
+        self.status_label = tk.Label(self.root, text="00:00")
+        self.status_label.pack()
+
+        self.position_slider = tk.Scale(self.root, from_=0, to=100, orient=tk.HORIZONTAL, command=self.set_position)
+        self.position_slider.pack(fill=tk.X)
+
+        self.shuffle_button = tk.Button(self.root, text="Shuffle", command=self.toggle_shuffle)
+        self.shuffle_button.pack()
+
+        self.repeat_button = tk.Button(self.root, text="Repeat", command=self.toggle_repeat)
+        self.repeat_button.pack()
+
+    def update_playlist_dropdown(self):
+        menu = self.playlist_dropdown["menu"]
+        menu.delete(0, "end")
+        playlists = self.music_service.get_all_playlists()
+        menu.add_command(label="All Songs", command=lambda: self.playlist_var.set("All Songs"))
+        menu.add_command(label="Favorites", command=lambda: self.playlist_var.set("Favorites"))
+        for playlist in playlists:
+            menu.add_command(label=playlist.name, command=lambda name=playlist.name: self.playlist_var.set(name))
+
     def add_folder(self):
         folder_path = filedialog.askdirectory()
         if folder_path:
@@ -96,6 +140,7 @@ class RadiantBeats:
             if selected_song.endswith(".mp3"):
                 pygame.mixer.music.load(selected_song)
                 pygame.mixer.music.play()
+                self.update_status()
             elif selected_song.endswith(".mp4"):
                 if VideoFileClip:
                     try:
@@ -129,10 +174,16 @@ class RadiantBeats:
     def add_to_playlist(self):
         selected_song = self.song_listbox.get(tk.ACTIVE)
         if selected_song:
-            playlist_name = filedialog.askstring("Playlist Name", "Enter playlist name:")
+            dialog = PlaylistNameDialog(self.root)
+            playlist_name = dialog.playlist_name
             if playlist_name:
                 self.music_service.create_playlist(playlist_name)
                 self.music_service.add_song_to_playlist(playlist_name, selected_song)
+                self.update_playlist_dropdown()  # Update the dropdown with the new playlist
+            else:
+                existing_playlist = self.playlist_var.get()
+                if existing_playlist != "All Songs" and existing_playlist != "Favorites":
+                    self.music_service.add_song_to_playlist(existing_playlist, selected_song)
 
     def add_to_favorites(self):
         selected_song = self.song_listbox.get(tk.ACTIVE)
@@ -148,6 +199,15 @@ class RadiantBeats:
 
     def load_favorites(self):
         self.load_playlist("Favorites")
+
+    def load_selected_playlist(self):
+        selected_playlist = self.playlist_var.get()
+        if selected_playlist == "All Songs":
+            self.refresh_songs()
+        elif selected_playlist == "Favorites":
+            self.load_favorites()
+        else:
+            self.load_playlist(selected_playlist)
 
     def delete_all_songs(self):
         try:
@@ -172,6 +232,41 @@ class RadiantBeats:
     def on_closing(self):
         self.connection.close()
         self.root.destroy()
+
+    def update_status(self):
+        if pygame.mixer.music.get_busy():
+            current_time = pygame.mixer.music.get_pos() // 1000
+            minutes = current_time // 60
+            seconds = current_time % 60
+            self.status_label.config(text=f"{minutes:02}:{seconds:02}")
+            self.position_slider.set(current_time)
+            self.root.after(1000, self.update_status)
+        else:
+            if self.repeat:
+                self.play_song()
+            else:
+                self.play_next_song()
+
+    def set_position(self, value):
+        pygame.mixer.music.set_pos(int(value))
+
+    def toggle_shuffle(self):
+        self.shuffle = not self.shuffle
+        self.shuffle_button.config(relief=tk.SUNKEN if self.shuffle else tk.RAISED)
+
+    def toggle_repeat(self):
+        self.repeat = not self.repeat
+        self.repeat_button.config(relief=tk.SUNKEN if self.repeat else tk.RAISED)
+
+    def play_next_song(self):
+        if self.shuffle:
+            self.current_song_index = random.randint(0, self.song_listbox.size() - 1)
+        else:
+            self.current_song_index = (self.current_song_index + 1) % self.song_listbox.size()
+        self.song_listbox.select_clear(0, tk.END)
+        self.song_listbox.select_set(self.current_song_index)
+        self.song_listbox.event_generate("<<ListboxSelect>>")
+        self.play_song()
 
 if __name__ == "__main__":
     root = tk.Tk()
