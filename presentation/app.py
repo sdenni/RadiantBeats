@@ -32,7 +32,7 @@ class RadiantBeats:
         
         self.root = root
         self.root.title("Radiant Beats")
-        self.root.geometry("600x1000")
+        self.root.geometry("600x600")
 
         self.music_service = MusicService()
         self.current_song_index = 0
@@ -40,6 +40,7 @@ class RadiantBeats:
         self.audio_previewer = FFPLAY_AudioPreviewer()
         self.shuffle = False
         self.repeat = False
+        self.paused = False
 
         pygame.mixer.init()
 
@@ -57,6 +58,9 @@ class RadiantBeats:
 
         self.play_button = tk.Button(self.root, text="Play", command=self.play_song)
         self.play_button.pack()
+
+        self.pause_button = tk.Button(self.root, text="Pause", command=self.pause_song)
+        self.pause_button.pack()
 
         self.stop_button = tk.Button(self.root, text="Stop", command=self.stop_song)
         self.stop_button.pack()
@@ -140,7 +144,9 @@ class RadiantBeats:
             if selected_song.endswith(".mp3"):
                 pygame.mixer.music.load(selected_song)
                 pygame.mixer.music.play()
+                self.paused = False
                 self.update_status()
+                self.set_slider_max(selected_song)
             elif selected_song.endswith(".mp4"):
                 if VideoFileClip:
                     try:
@@ -165,8 +171,17 @@ class RadiantBeats:
                 else:
                     messagebox.showerror("Playback Error", "ffplay is not available. Please ensure ffplay is installed and in your PATH.")
 
+    def pause_song(self):
+        if not self.paused:
+            pygame.mixer.music.pause()
+            self.paused = True
+        else:
+            pygame.mixer.music.unpause()
+            self.paused = False
+
     def stop_song(self):
         pygame.mixer.music.stop()
+        self.paused = False
         if self.current_video:
             self.current_video.close()
             self.current_video = None
@@ -240,15 +255,21 @@ class RadiantBeats:
             seconds = current_time % 60
             self.status_label.config(text=f"{minutes:02}:{seconds:02}")
             self.position_slider.set(current_time)
-            self.root.after(1000, self.update_status)
+            self.root.after(500, self.update_status)  # Update every 500ms for better responsiveness
         else:
-            if self.repeat:
-                self.play_song()
-            else:
-                self.play_next_song()
+            if not self.paused:
+                if self.repeat:
+                    self.play_song()
+                else:
+                    self.play_next_song()
 
     def set_position(self, value):
+        pygame.mixer.music.rewind()
         pygame.mixer.music.set_pos(int(value))
+
+    def set_slider_max(self, song_path):
+        song_length = pygame.mixer.Sound(song_path).get_length()
+        self.position_slider.config(to=int(song_length))
 
     def toggle_shuffle(self):
         self.shuffle = not self.shuffle
